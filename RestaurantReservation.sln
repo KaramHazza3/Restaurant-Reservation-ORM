@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RestaurantReservation.Db", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RestaurantReservation.Contracts", "RestaurantReservation.Contracts\RestaurantReservation.Contracts.csproj", "{4AB9796F-7FE2-4999-A596-F53A04A7B35D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RestaurantReservation.Shared", "RestaurantReservation.Shared\RestaurantReservation.Shared.csproj", "{73526B6D-73E1-4D92-ADE1-589B46D1DA73}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{4AB9796F-7FE2-4999-A596-F53A04A7B35D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4AB9796F-7FE2-4999-A596-F53A04A7B35D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4AB9796F-7FE2-4999-A596-F53A04A7B35D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{73526B6D-73E1-4D92-ADE1-589B46D1DA73}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{73526B6D-73E1-4D92-ADE1-589B46D1DA73}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{73526B6D-73E1-4D92-ADE1-589B46D1DA73}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{73526B6D-73E1-4D92-ADE1-589B46D1DA73}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

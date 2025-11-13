@@ -1,62 +1,53 @@
 ﻿using AutoMapper;
 using RestaurantReservation.Contracts.Requests;
 using RestaurantReservation.Contracts.Responses;
+using RestaurantReservation.Db;
 using RestaurantReservation.Db.Models;
-using RestaurantReservation.Db.Repositories;
+using RestaurantReservation.Db.Repositories.Intf;
 using RestaurantReservation.Exceptions;
+using RestaurantReservation.Helpers;
+using RestaurantReservation.Services.Interfaces;
 
 namespace RestaurantReservation.Services;
 
-public class CustomerService
+public class CustomerService : ICustomerService
 {
-    private readonly CustomerRepository _customerRepository;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
-    public CustomerService(CustomerRepository customerRepository, IMapper mapper)
+    public CustomerService(IUnitOfWork unitOfWork, IMapper mapper)
     {
-        this._customerRepository = customerRepository;
+        this._unitOfWork = unitOfWork;
         this._mapper = mapper;
     }
 
     public async Task<List<CustomerResponse>> ListAllCustomersAsync()
     {
-        var customers = await _customerRepository.ListAllAsync();
+        var customers = await _unitOfWork.Customers.ListAllAsync();
         return _mapper.Map<List<CustomerResponse>>(customers);
     }
     
     public async Task<CustomerResponse> CreateCustomerAsync(CustomerRequest customerRequest)
     {
-        if (customerRequest is null)
-        {
-            throw new ArgumentNullException(nameof(customerRequest));
-        }
-
-        if (string.IsNullOrEmpty(customerRequest.Email) ||
-            string.IsNullOrEmpty(customerRequest.FirstName) ||
-            string.IsNullOrEmpty(customerRequest.LastName) ||
-            string.IsNullOrEmpty(customerRequest.PhoneNumber))
-        {
-            throw new ArgumentException("All required customer fields (Email, FirstName, LastName, PhoneNumber) must be provided.");
-        }
+        ValidateCustomerRequest(customerRequest);
         
-        var existingCustomer = await _customerRepository.GetByEmailAsync(customerRequest.Email);
+        var existingCustomer = await _unitOfWork.Customers.GetByEmailAsync(customerRequest.Email!);
         if (existingCustomer is not null)
         {
             throw new AlreadyExistsException($"The customer with email {customerRequest.Email} is already exists");
         }
         var customerEntity = _mapper.Map<Customer>(customerRequest);
-        await _customerRepository.CreateAsync(customerEntity);
+        await _unitOfWork.Customers.CreateAsync(customerEntity);
+        await _unitOfWork.CommitAsync();
         return _mapper.Map<CustomerResponse>(customerEntity);
     }
 
     public async Task<bool> DeleteCustomerByIdAsync(int customerId)
     {
-        var existingCustomer = await _customerRepository.GetByIdAsync(customerId);
-        if (existingCustomer is null)
-        {
-            throw new NotFoundException($"The customer doesn't exist");
-        }
-        return await _customerRepository.DeleteByIdAsync(customerId);
+        await EnsureCustomerExistsAsync(customerId);
+        await _unitOfWork.Customers.DeleteByIdAsync(customerId);
+        await _unitOfWork.CommitAsync();
+        return true;
     }
 
     public async Task UpdateCustomerByIdAsync(int customerId, CustomerRequest updatedCustomer)
@@ -65,19 +56,31 @@ public class CustomerService
         {
             throw new ArgumentNullException(nameof(updatedCustomer));
         }
-        var existingCustomer = await _customerRepository.GetByIdAsync(customerId);
-        if (existingCustomer is null)
-        {
-            throw new NotFoundException($"The customer doesn't exist");
-        }
 
+        var existingCustomer = await EnsureCustomerExistsAsync(customerId);
         _mapper.Map(updatedCustomer, existingCustomer);
-        await _customerRepository.UpdateAsync(existingCustomer);
+        await _unitOfWork.Customers.UpdateAsync(existingCustomer);
+        await _unitOfWork.CommitAsync();
     }
 
-    public async Task<bool> IsCustomerExists(int customerId)
+    public async Task<Customer> EnsureCustomerExistsAsync(int customerId)
     {
-        return await _customerRepository.GetByIdAsync(customerId) != null;
+        var customer = await _unitOfWork.Customers.GetByIdAsync(customerId);
+        if (customer is null)
+            throw new NotFoundException("The customer doesn't exist");
+
+        return customer;
+    }
+    
+    private static void ValidateCustomerRequest(CustomerRequest customerRequest)
+    {
+        ValidationHelper.EnsureNotNull(customerRequest, nameof(customerRequest));
+        ValidationHelper.EnsureRequiredFields(
+            (customerRequest.Email, nameof(customerRequest.Email))!,
+            (customerRequest.FirstName, nameof(customerRequest.FirstName))!,
+            (customerRequest.LastName, nameof(customerRequest.LastName))!,
+            (customerRequest.PhoneNumber, nameof(customerRequest.PhoneNumber))!
+            );
     }
     
 }

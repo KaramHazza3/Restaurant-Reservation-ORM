@@ -1,24 +1,29 @@
-﻿using AutoMapper;
+﻿using System.ComponentModel.DataAnnotations;
+using AutoMapper;
 using RestaurantReservation.Contracts.Requests;
 using RestaurantReservation.Contracts.Responses;
+using RestaurantReservation.Db;
 using RestaurantReservation.Db.Models;
 using RestaurantReservation.Db.Repositories;
+using RestaurantReservation.Db.Repositories.Intf;
 using RestaurantReservation.Exceptions;
+using RestaurantReservation.Helpers;
+using RestaurantReservation.Services.Interfaces;
 
 namespace RestaurantReservation.Services;
 
-public class OrderService
+public class OrderService : IOrderService
 {
-    private readonly OrderRepository _orderRepository;
-    private readonly EmployeeService _employeeService;
-    private readonly ReservationService _reservationService;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IEmployeeService _employeeService;
+    private readonly IReservationService _reservationService;
     private readonly IMapper _mapper;
     
-    public OrderService(OrderRepository orderRepository,
-        EmployeeService employeeService, ReservationService reservationService,
+    public OrderService(IUnitOfWork unitOfWork,
+        IEmployeeService employeeService, IReservationService reservationService,
         IMapper mapper)
     {
-        this._orderRepository = orderRepository;
+        this._unitOfWork = unitOfWork;
         this._employeeService = employeeService;
         this._reservationService = reservationService;
         this._mapper = mapper;
@@ -26,49 +31,28 @@ public class OrderService
     
     public async Task<List<OrderResponse>> ListAllOrderAsync()
     {
-        var orders = await _orderRepository.ListAllAsync();
+        var orders = await _unitOfWork.Orders.ListAllAsync();
         return _mapper.Map<List<OrderResponse>>(orders);
     }
     
     public async Task<OrderResponse> CreateOrderAsync(OrderRequest orderRequest)
     {
-        if (orderRequest is null)
-        {
-            throw new ArgumentNullException(nameof(orderRequest));
-        }
-
-        if (orderRequest.Discount is null ||
-            orderRequest.Tax is null ||
-            orderRequest.TotalPrice is null ||
-            orderRequest.EmployeeId is null ||
-            orderRequest.ReservationId is null)
-        {
-            throw new ArgumentException("All required order fields (ReservationId, EmployeeId, TotalPrice, Tax, Discount) must be provided.");
-        }
-
-        if (!await this._employeeService.IsEmployeeExists(orderRequest.EmployeeId.Value))
-        {
-            throw new NotFoundException("The employee doesn't exist");
-        }
-        
-        if (!await this._reservationService.IsReservationExists(orderRequest.ReservationId.Value))
-        {
-            throw new NotFoundException("The reservation doesn't exist");
-        }
+        ValidateOrderRequest(orderRequest);
+        await _employeeService.EnsureEmployeeExistsAsync(orderRequest.EmployeeId!.Value);
+        await _reservationService.EnsureReservationExistsAsync(orderRequest.ReservationId!.Value);
         
         var orderEntity = _mapper.Map<Order>(orderRequest);
-        await _orderRepository.CreateAsync(orderEntity);
+        await _unitOfWork.Orders.CreateAsync(orderEntity);
+        await _unitOfWork.CommitAsync();
         return _mapper.Map<OrderResponse>(orderEntity);
     }
 
     public async Task<bool> DeleteOrderByIdAsync(int orderId)
     {
-        var existingOrder = await _orderRepository.GetByIdAsync(orderId);
-        if (existingOrder is null)
-        {
-            throw new NotFoundException($"The order doesn't exist");
-        }
-        return await _orderRepository.DeleteByIdAsync(orderId);
+        await EnsureOrderExistsAsync(orderId);
+        await _unitOfWork.Orders.DeleteByIdAsync(orderId);
+        await _unitOfWork.CommitAsync();
+        return true;
     }
 
     public async Task UpdateOrderByIdAsync(int orderId, OrderRequest updatedOrder)
@@ -77,31 +61,26 @@ public class OrderService
         {
             throw new ArgumentNullException(nameof(updatedOrder));
         }
-        var existingOrder = await _orderRepository.GetByIdAsync(orderId);
-        if (existingOrder is null)
+
+        var existingOrder = await EnsureOrderExistsAsync(orderId);
+        if (updatedOrder.EmployeeId.HasValue)
         {
-            throw new NotFoundException($"The order doesn't exist");
+            await _employeeService.EnsureEmployeeExistsAsync(updatedOrder.EmployeeId.Value);
         }
 
-        if (updatedOrder.EmployeeId.HasValue &&
-            !await this._employeeService.IsEmployeeExists(updatedOrder.EmployeeId.Value))
+        if (updatedOrder.ReservationId.HasValue)
         {
-            throw new NotFoundException("The employee doesn't exist");
-        }
-        
-        if (updatedOrder.ReservationId.HasValue &&
-            !await this._reservationService.IsReservationExists(updatedOrder.ReservationId.Value))
-        {
-            throw new NotFoundException("The reservation doesn't exist");
+            await _reservationService.EnsureReservationExistsAsync(updatedOrder.ReservationId.Value);
         }
 
         _mapper.Map(updatedOrder, existingOrder);
-        await _orderRepository.UpdateAsync(existingOrder);
+        await _unitOfWork.Orders.UpdateAsync(existingOrder);
+        await _unitOfWork.CommitAsync();
     }
 
     public async Task<List<OrdersAndMenuItemsResponse>> ListOrdersAndMenuItemsForReservationIdAsync(int reservationId)
     {
-        var orders = await _orderRepository.GetOrdersWithItemsByReservationIdAsync(reservationId);
+        var orders = await _unitOfWork.Orders.GetOrdersWithItemsByReservationIdAsync(reservationId);
 
         return orders.Select(o => new OrdersAndMenuItemsResponse(
             o.ReservationId,
@@ -117,7 +96,7 @@ public class OrderService
 
     public async Task<List<MenuItemsListResponse>> ListOrderedMenuItemsForReservationIdAsync(int reservationId)
     {
-        var orders = await _orderRepository.GetOrdersWithItemsByReservationIdAsync(reservationId);
+        var orders = await _unitOfWork.Orders.GetOrdersWithItemsByReservationIdAsync(reservationId);
 
         return orders
             .SelectMany(o => o.OrderItems)
@@ -131,6 +110,29 @@ public class OrderService
 
     public async Task<Decimal> CalculateAverageOrderAmountForEmployeeIdAsync(int employeeId)
     {
-        return await this._orderRepository.CalculateAverageOrderAmountAsync(employeeId);
+        return await this._unitOfWork.Orders.CalculateAverageOrderAmountAsync(employeeId);
+    }
+    
+    private static void ValidateOrderRequest(OrderRequest orderRequest)
+    {
+       ValidationHelper.EnsureNotNull(orderRequest, nameof(orderRequest));
+       ValidationHelper.EnsureRequiredFields(
+           (orderRequest.Discount, nameof(orderRequest.Discount))!,
+           (orderRequest.TotalPrice, nameof(orderRequest.TotalPrice))!,
+           (orderRequest.Tax, nameof(orderRequest.Tax))!,
+           (orderRequest.EmployeeId, nameof(orderRequest.EmployeeId))!,
+           (orderRequest.ReservationId, nameof(orderRequest.ReservationId))!
+           );
+    }
+    
+    private async Task<Order> EnsureOrderExistsAsync(int orderId)
+    {
+        var existingOrder = await _unitOfWork.Orders.GetByIdAsync(orderId);
+        if (existingOrder is null)
+        {
+            throw new NotFoundException($"The order doesn't exist");
+        }
+
+        return existingOrder;
     }
 }

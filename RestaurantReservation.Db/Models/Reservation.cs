@@ -1,4 +1,5 @@
 ﻿using RestaurantReservation.Db.Models.Intf;
+using RestaurantReservation.Shared.Enums;
 
 namespace RestaurantReservation.Db.Models;
 
@@ -10,7 +11,7 @@ public class Reservation : IHasTimestamps
     public int RestaurantId { get; set; }
     public Restaurant Restaurant { get; set; }
     public int PartySize { get; set; }
-    public string Status { get; set; }
+    public ReservationStatus Status { get; set; }
     public List<ReservationTable> ReservationTables { get; set; } = new List<ReservationTable>();
     public List<Order> Orders { get; set; } = new List<Order>();
 

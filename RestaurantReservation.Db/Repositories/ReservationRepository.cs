@@ -1,10 +1,11 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using RestaurantReservation.Contracts.Responses;
 using RestaurantReservation.Db.Models;
+using RestaurantReservation.Db.Repositories.Intf;
 
 namespace RestaurantReservation.Db.Repositories;
 
-public class ReservationRepository
+public class ReservationRepository : IReservationRepository
 {
     private readonly RestaurantReservationDbContext _context;
 
@@ -16,7 +17,6 @@ public class ReservationRepository
     public async Task<Reservation> CreateAsync(Reservation reservation)
     {
         await _context.Reservations.AddAsync(reservation);
-        await _context.SaveChangesAsync();
         return reservation;
     }
     
@@ -30,27 +30,29 @@ public class ReservationRepository
         return await _context.Reservations.SingleOrDefaultAsync(r => r.Id == reservationId);
     }
 
-    public async Task<bool> DeleteByIdAsync(int reservationId)
+    public async Task DeleteByIdAsync(int reservationId)
     {
         var reservation = await _context.Reservations.FindAsync(reservationId);
         if (reservation is null)
-            return false;
+            return;
 
         _context.Reservations.Remove(reservation);
-        return true;
     }
 
     public async Task UpdateAsync(Reservation reservation)
     {
-        await _context.SaveChangesAsync();
+        var existingReservation = await _context.Reservations
+            .FirstOrDefaultAsync(r => r.Id == reservation.Id);
+        
+        _context.Entry(existingReservation!).CurrentValues.SetValues(reservation);
     }
     
-    public async Task<List<Reservation>> GetReservationsByCustomerId(int customerId)
+    public async Task<List<Reservation>> GetReservationsByCustomerIdAsync(int customerId)
     {
         return await _context.Reservations.Where(r => r.CustomerId == customerId).ToListAsync();
     }
     
-    public async Task<List<CustomersWithLargePartiesResponse>> ListCustomersReservationExceedsPartySize(int partySize)
+    public async Task<List<CustomersWithLargePartiesResponse>> ListCustomersReservationExceedsPartySizeAsync(int partySize)
     {
         return await _context.CustomersLargeReservations
             .FromSqlRaw("EXEC sp_ListCustomersExceedsPartySizeReservations @PartySize = {0}", partySize)

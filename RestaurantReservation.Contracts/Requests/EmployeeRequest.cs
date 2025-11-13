@@ -1,8 +1,11 @@
-﻿namespace RestaurantReservation.Contracts.Requests;
+﻿
+using RestaurantReservation.Shared.Enums;
+
+namespace RestaurantReservation.Contracts.Requests;
 
 public record EmployeeRequest(
     string? FirstName,
     string? LastName,
-    string? Position,
+    EmployeePosition? Position,
     int? RestaurantId
     );

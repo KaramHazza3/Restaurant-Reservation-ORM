@@ -1,28 +1,50 @@
 ﻿using Microsoft.EntityFrameworkCore.Storage;
-using RestaurantReservation.Db.Repositories;
+using RestaurantReservation.Db.Repositories.Intf;
 
 namespace RestaurantReservation.Db;
 
 public class UnitOfWork : IUnitOfWork
 {
     private readonly RestaurantReservationDbContext _context;
-    public ReservationTableRepository ReservationTable { get; }
-    public ReservationRepository Reservations { get; }
-    public TableRepository Tables { get; }
-    
-    public UnitOfWork(RestaurantReservationDbContext context)
+    public IReservationTableRepository ReservationTable { get; }
+    public IReservationRepository Reservations { get; }
+    public ITableRepository Tables { get; }
+    public ICustomerRepository Customers { get; }
+    public IEmployeeRepository Employees { get; }
+    public IMenuItemRepository MenuItems { get; }
+    public IOrderRepository Orders { get; }
+    public IOrderItemRepository OrderItems { get; }
+    public IRestaurantRepository Restaurants { get; }
+
+    public UnitOfWork(
+        RestaurantReservationDbContext context,
+        IReservationTableRepository reservationTable,
+        IReservationRepository reservations,
+        ITableRepository tables,
+        ICustomerRepository customers,
+        IEmployeeRepository employees,
+        IMenuItemRepository menuItems,
+        IOrderRepository orders,
+        IOrderItemRepository orderItems,
+        IRestaurantRepository restaurants)
     {
         _context = context;
-        ReservationTable = new ReservationTableRepository(_context);
-        Reservations = new ReservationRepository(_context);
-        Tables = new TableRepository(_context);
+        ReservationTable = reservationTable;
+        Reservations = reservations;
+        Tables = tables;
+        Customers = customers;
+        Employees = employees;
+        MenuItems = menuItems;
+        Orders = orders;
+        OrderItems = orderItems;
+        Restaurants = restaurants;
     }
     public void Dispose()
     {
         _context.Dispose();
     }
     
-    public async Task<int> SaveChangesAsync()
+    public async Task<int> CommitAsync()
     {
         return await _context.SaveChangesAsync();
     }

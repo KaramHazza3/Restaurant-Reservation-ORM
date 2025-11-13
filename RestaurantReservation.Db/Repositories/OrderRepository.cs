@@ -1,9 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using RestaurantReservation.Db.Models;
+using RestaurantReservation.Db.Repositories.Intf;
 
 namespace RestaurantReservation.Db.Repositories;
 
-public class OrderRepository
+public class OrderRepository : IOrderRepository
 {
     private readonly RestaurantReservationDbContext _context;
 
@@ -15,7 +16,6 @@ public class OrderRepository
     public async Task<Order> CreateAsync(Order order)
     {
         await _context.Orders.AddAsync(order);
-        await _context.SaveChangesAsync();
         return order;
     }
     
@@ -29,18 +29,19 @@ public class OrderRepository
         return await _context.Orders.SingleOrDefaultAsync(o => o.Id == orderId);
     }
 
-    public async Task<bool> DeleteByIdAsync(int orderId)
+    public async Task DeleteByIdAsync(int orderId)
     {
-        var deletedCount = await _context.Orders
+        await _context.Orders
             .Where(o => o.Id == orderId)
             .ExecuteDeleteAsync();
-
-        return deletedCount > 0;
     }
 
     public async Task UpdateAsync(Order order)
     {
-        await _context.SaveChangesAsync();
+        var existingOrder = await _context.Orders
+            .FirstOrDefaultAsync(o => o.Id == order.Id);
+        
+        _context.Entry(existingOrder!).CurrentValues.SetValues(order);
     }
     
     public async Task<List<Order>> GetOrdersWithItemsByReservationIdAsync(int reservationId)

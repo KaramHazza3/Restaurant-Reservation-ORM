@@ -1,9 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using RestaurantReservation.Db.Models;
+using RestaurantReservation.Db.Repositories.Intf;
 
 namespace RestaurantReservation.Db.Repositories;
 
-public class TableRepository
+public class TableRepository : ITableRepository
 {
     private readonly RestaurantReservationDbContext _context;
 
@@ -15,7 +16,6 @@ public class TableRepository
     public async Task<Table> CreateAsync(Table table)
     {
         await _context.Tables.AddAsync(table);
-        await _context.SaveChangesAsync();
         return table;
     }
     
@@ -29,18 +29,19 @@ public class TableRepository
         return await _context.Tables.SingleOrDefaultAsync(t => t.Id == tableId);
     }
 
-    public async Task<bool> DeleteByIdAsync(int tableId)
+    public async Task DeleteByIdAsync(int tableId)
     {
-        var deletedCount = await _context.Tables
+        await _context.Tables
             .Where(t => t.Id == tableId)
             .ExecuteDeleteAsync();
-
-        return deletedCount > 0;
     }
 
     public async Task UpdateAsync(Table table)
     {
-        await _context.SaveChangesAsync();
+        var existingTable = await _context.Tables
+            .FirstOrDefaultAsync(t => t.Id == table.Id);
+        
+        _context.Entry(existingTable!).CurrentValues.SetValues(table);
     }
 
     public async Task<List<Table>> GetAvailableTablesForRestaurant(int restaurantId)

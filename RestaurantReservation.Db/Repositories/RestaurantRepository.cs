@@ -1,9 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using RestaurantReservation.Db.Models;
+using RestaurantReservation.Db.Repositories.Intf;
 
 namespace RestaurantReservation.Db.Repositories;
 
-public class RestaurantRepository
+public class RestaurantRepository : IRestaurantRepository
 {
     private readonly RestaurantReservationDbContext _context;
 
@@ -15,7 +16,6 @@ public class RestaurantRepository
     public async Task<Restaurant> CreateAsync(Restaurant restaurant)
     {
         await _context.Restaurants.AddAsync(restaurant);
-        await _context.SaveChangesAsync();
         return restaurant;
     }
     
@@ -29,25 +29,26 @@ public class RestaurantRepository
         return await _context.Restaurants.SingleOrDefaultAsync(r => r.Id == restaurantId);
     }
 
-    public async Task<bool> DeleteByIdAsync(int restaurantId)
+    public async Task DeleteByIdAsync(int restaurantId)
     {
-        var deletedCount = await _context.Restaurants
+        await _context.Restaurants
             .Where(r => r.Id == restaurantId)
             .ExecuteDeleteAsync();
-
-        return deletedCount > 0;
     }
 
     public async Task UpdateAsync(Restaurant restaurant)
     {
-        await _context.SaveChangesAsync();
+        var existingRestaurant = await _context.Restaurants
+            .FirstOrDefaultAsync(r => r.Id == restaurant.Id);
+        
+        _context.Entry(existingRestaurant!).CurrentValues.SetValues(restaurant);
     }
     
-    public async Task<Decimal> CalculateRestaurantRevenueAsync(int restaurantId)
+    public async Task<decimal> CalculateRestaurantRevenueAsync(int restaurantId)
     {
         return await _context.Restaurants
             .Where(r => r.Id == restaurantId)
-            .Select(r => _context.CalculateRestaurantRevenue(restaurantId))
+            .Select(r => _context.CalculateRestaurantRevenue(r.Id))
             .FirstOrDefaultAsync();
     }
 }

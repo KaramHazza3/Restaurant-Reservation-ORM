@@ -1,4 +1,5 @@
 ﻿using RestaurantReservation.Db.Models.Intf;
+using RestaurantReservation.Shared.Enums;
 
 namespace RestaurantReservation.Db.Models;
 
@@ -12,7 +13,7 @@ public class Order : IHasTimestamps
     public Decimal TotalPrice { get; set; }
     public Decimal Discount { get; set; }
     public Decimal Tax { get; set; }
-    public string Status { get; set; }
+    public OrderStatus Status { get; set; }
     public List<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
 
     public DateTime CreatedAt { get; set; }
